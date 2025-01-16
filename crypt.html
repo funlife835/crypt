@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><!-- 添加严格的 CSP 策略 -->
+<meta http-equiv="Content-Security-Policy" 
+      content="default-src 'none'; 
+               script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js; 
+               style-src 'unsafe-inline'; 
+               connect-src 'none';">
+<!-- 禁止所有网络请求 -->
+<meta http-equiv="X-Content-Security-Policy" content="connect-src 'none';">
+<!-- 禁止 CORS -->
+<meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp">
+<meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin">
+<meta http-equiv="Cross-Origin-Resource-Policy" content="same-origin">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文字信息加密解密</title>
+    <style>
+        /* 移动端适配 */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow-x: hidden;
+            position: fixed;
+            font-size: 16px;
+            -webkit-text-size-adjust: 100%;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            touch-action: manipulation;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .container {
+            flex: 1;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            box-sizing: border-box;
+            background-color: #fff;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        @media screen and (max-width: 600px) {
+            .container {
+                margin: 0;
+                padding: 15px;
+                height: 100%;
+                border-radius: 0;
+            }
+            
+            .input-group {
+                margin-bottom: 12px;
+            }
+            
+            .input-group textarea {
+                font-size: 16px; /* 防止iOS自动缩放 */
+                min-height: 100px;
+            }
+            
+            .input-group input {
+                font-size: 16px;
+                height: 40px;
+            }
+            
+            .btn {
+                width: 100%;
+                margin-bottom: 10px;
+                height: 44px;
+                font-size: 16px;
+            }
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        .input-group input,
+        .input-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            background-color: #fff;
+            -webkit-appearance: none;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .btn:last-child {
+            margin-right: 0;
+        }
+        
+        .btn:active {
+            opacity: 0.8;
+        }
+        
+        .output {
+            margin-top: 20px;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .output textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #fff;
+            box-sizing: border-box;
+            -webkit-appearance: none;
+        }
+        
+        /* 禁止选择和拖拽文本 */
+        .secure-input {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        
+        .secure-input:focus {
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+        }
+        
+        /* 允许选择输出结果 */
+        .output textarea {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            -moz-user-select: text !important;
+            -ms-user-select: text !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>文字信息加密解密</h2>
+        <div class="input-group">
+            <label for="password">密码 (至少12位，包含大小写字母、数字和特殊符号):</label>
+            <input type="password" 
+                   id="password" 
+                   placeholder="输入密码" 
+                   autocomplete="off" 
+                   spellcheck="false"
+                   data-form-type="other"
+                   class="secure-input"
+                   onpaste="return false"
+                   oncontextmenu="return false">
+            <div id="passwordStrength" style="margin-top: 5px; font-size: 12px;"></div>
+        </div>
+        <div class="input-group">
+            <label for="textInput">文本信息:</label>
+            <textarea id="textInput" 
+                      rows="6" 
+                      placeholder="输入文本信息" 
+                      autocomplete="off" 
+                      spellcheck="false" 
+                      data-form-type="other"
+                      class="secure-input"></textarea>
+        </div>
+        <button class="btn" onclick="encryptText()">加密</button>
+        <button class="btn" onclick="decryptText()">解密</button>
+        <button class="btn" onclick="clearAll()" style="background-color: #dc3545;">清除所有内容</button>
+        
+        <div class="output">
+            <h4>结果:</h4>
+            <textarea id="output" 
+                      rows="6" 
+                      readonly></textarea>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script>
+        // 禁止所有网络请求
+        (function() {
+            // 覆盖 XMLHttpRequest
+            window.XMLHttpRequest = function() {
+                throw new Error('网络请求已被禁用');
+            };
+            
+            // 覆盖 fetch
+            window.fetch = function() {
+                throw new Error('网络请求已被禁用');
+            };
+            
+            // 禁用 WebSocket
+            window.WebSocket = function() {
+                throw new Error('WebSocket 已被禁用');
+            };
+            
+            // 禁用 EventSource
+            window.EventSource = function() {
+                throw new Error('EventSource 已被禁用');
+            };
+            
+            // 监听并阻止任何动态脚本加载
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.tagName === 'SCRIPT' || node.tagName === 'IFRAME') {
+                            node.remove();
+                        }
+                    });
+                });
+            });
+            
+            observer.observe(document.documentElement, {
+                childList: true,
+                subtree: true
+            });
+        })();
+        // 页面加载完成后清除所有输入
+        window.onload = function() {
+            clearAll();
+        };
+
+        // 页面关闭或刷新前清除所有输入
+        window.onbeforeunload = function() {
+            clearAll();
+            return null;
+        };
+
+        // 清除所有输入内容
+        function clearAll() {
+            document.getElementById('password').value = '';
+            document.getElementById('textInput').value = '';
+            document.getElementById('output').value = '';
+            document.getElementById('passwordStrength').textContent = '';
+            
+            // 清除可能的剪贴板内容
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText('').catch(() => {});
+            }
+        }
+
+        // 自动清除功能：如果用户离开页面超过5分钟，自动清除所有内容
+        let inactivityTimer;
+        function resetInactivityTimer() {
+            clearTimeout(inactivityTimer);
+            inactivityTimer = setTimeout(clearAll, 5 * 60 * 1000); // 5分钟
+        }
+        
+        // 监听用户活动
+        ['mousemove', 'keypress', 'scroll', 'click'].forEach(event => {
+            document.addEventListener(event, resetInactivityTimer);
+        });
+        resetInactivityTimer();
+
+        // 禁用右键菜单（仅对密码框和输入框）
+        document.addEventListener('contextmenu', function(e) {
+            if (e.target.id === 'password' || e.target.id === 'textInput') {
+                e.preventDefault();
+            }
+        });
+
+        // 禁用复制粘贴（仅对密码框和输入框）
+        document.getElementById('password').addEventListener('copy', function(e) {
+            e.preventDefault();
+        });
+        document.getElementById('password').addEventListener('cut', function(e) {
+            e.preventDefault();
+        });
+        document.getElementById('textInput').addEventListener('copy', function(e) {
+            e.preventDefault();
+        });
+        document.getElementById('textInput').addEventListener('cut', function(e) {
+            e.preventDefault();
+        });
+
+        // 检查密码强度
+        function checkPasswordStrength(password) {
+            const minLength = 12;
+            const hasUpperCase = /[A-Z]/.test(password);
+            const hasLowerCase = /[a-z]/.test(password);
+            const hasNumbers = /\d/.test(password);
+            const hasSpecialChars = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+            
+            let strength = 0;
+            let message = '';
+            
+            if (password.length >= minLength) strength++;
+            if (hasUpperCase) strength++;
+            if (hasLowerCase) strength++;
+            if (hasNumbers) strength++;
+            if (hasSpecialChars) strength++;
+            
+            switch(strength) {
+                case 0:
+                case 1:
+                    message = '密码强度：很弱';
+                    break;
+                case 2:
+                    message = '密码强度：弱';
+                    break;
+                case 3:
+                    message = '密码强度：中等';
+                    break;
+                case 4:
+                    message = '密码强度：强';
+                    break;
+                case 5:
+                    message = '密码强度：很强';
+                    break;
+            }
+            
+            const strengthDiv = document.getElementById('passwordStrength');
+            strengthDiv.textContent = message;
+            strengthDiv.style.color = strength >= 4 ? 'green' : (strength >= 3 ? 'orange' : 'red');
+            
+            return strength >= 4;
+        }
+
+        // 密码输入事件监听
+        document.getElementById('password').addEventListener('input', function() {
+            checkPasswordStrength(this.value);
+        });
+
+        // 使用 AES-256-CBC 加密
+        function encryptText() {
+            const password = document.getElementById('password').value;
+            const text = document.getElementById('textInput').value;
+            
+            if (!password || !text) {
+                alert('密码和文本都不能为空');
+                return;
+            }
+            
+            if (!checkPasswordStrength(password)) {
+                alert('请使用更强的密码（至少12位，包含大小写字母、数字和特殊符号）');
+                return;
+            }
+            
+            try {
+                // 生成256位密钥
+                const salt = CryptoJS.lib.WordArray.random(128/8);
+                const key = CryptoJS.PBKDF2(password, salt, {
+                    keySize: 256/32,
+                    iterations: 1000
+                });
+                
+                // 生成随机IV
+                const iv = CryptoJS.lib.WordArray.random(128/8);
+                
+                // 使用 AES-256-CBC 加密
+                const encrypted = CryptoJS.AES.encrypt(text, key, {
+                    iv: iv,
+                    mode: CryptoJS.mode.CBC,
+                    padding: CryptoJS.pad.Pkcs7
+                });
+                
+                // 组合加密结果
+                const result = salt.toString() + iv.toString() + encrypted.toString();
+                document.getElementById('output').value = result;
+                
+                // 加密完成后清除原文和密码
+                document.getElementById('textInput').value = '';
+                document.getElementById('password').value = '';
+                document.getElementById('passwordStrength').textContent = '';
+            } catch (e) {
+                alert('加密失败: ' + e.message);
+            }
+        }
+
+        // 使用 AES-256-CBC 解密
+        function decryptText() {
+            const password = document.getElementById('password').value;
+            const encryptedText = document.getElementById('textInput').value;
+            
+            if (!password || !encryptedText) {
+                alert('密码和加密文本都不能为空');
+                return;
+            }
+
+            try {
+                // 从加密文本中提取 salt, iv 和加密数据
+                const salt = CryptoJS.enc.Hex.parse(encryptedText.substr(0, 32));
+                const iv = CryptoJS.enc.Hex.parse(encryptedText.substr(32, 32));
+                const encrypted = encryptedText.substring(64);
+                
+                // 重新生成密钥
+                const key = CryptoJS.PBKDF2(password, salt, {
+                    keySize: 256/32,
+                    iterations: 1000
+                });
+                
+                // 解密
+                const decrypted = CryptoJS.AES.decrypt(encrypted, key, {
+                    iv: iv,
+                    mode: CryptoJS.mode.CBC,
+                    padding: CryptoJS.pad.Pkcs7
+                });
+                
+                const originalText = decrypted.toString(CryptoJS.enc.Utf8);
+                if (originalText) {
+                    document.getElementById('output').value = originalText;
+                    // 解密完成后清除密码
+                    document.getElementById('password').value = '';
+                    document.getElementById('passwordStrength').textContent = '';
+                } else {
+                    alert('解密失败，请检查密码是否正确');
+                }
+            } catch (e) {
+                alert('解密失败，请检查加密文本和密码');
+            }
+        }
+    </script>
+</body>
+</html>
